@@ -1,0 +1,59 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  package:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo test --locked --target ${{ matrix.target }}
+      - run: cargo build --locked --release --target ${{ matrix.target }}
+      - name: Archive
+        shell: bash
+        run: |
+          mkdir -p package/python
+          cp target/${{ matrix.target }}/release/rembg-rs package/
+          cp python/*.py python/requirements.txt package/python/
+          cp README.md LICENSE package/
+          tar -C package -czf rembg-rs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz .
+          if command -v sha256sum >/dev/null; then
+            sha256sum rembg-rs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz > rembg-rs-${{ github.ref_name }}-${{ matrix.target }}.sha256
+          else
+            shasum -a 256 rembg-rs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz > rembg-rs-${{ github.ref_name }}-${{ matrix.target }}.sha256
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rembg-rs-${{ matrix.target }}
+          path: |
+            rembg-rs-*.tar.gz
+            rembg-rs-*.sha256
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rembg-rs-*
+          merge-multiple: true
+      - name: Verify checksums
+        run: sha256sum -c *.sha256
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.tar.gz
+            *.sha256

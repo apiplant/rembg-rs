@@ -1,0 +1,7 @@
+torch
+torchvision
+diffusers>=0.42.0
+transformers
+accelerate
+huggingface_hub
+pillow

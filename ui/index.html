@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f6f3">
+  <title>rembg-rs · Background removal</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18201d;
+      --muted: #6e7772;
+      --line: #e5e8e3;
+      --paper: #fff;
+      --wash: #f6f6f3;
+      --green: #276b4d;
+      --green-dark: #1d553c;
+      --mint: #e7f2eb;
+      --shadow: 0 18px 60px rgba(29, 43, 35, .07);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--wash);
+      color: var(--ink);
+      font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    .shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+    header {
+      height: 78px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 760; letter-spacing: -.045em; }
+    .brand-mark { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 10px; color: white; background: var(--green); }
+    .brand-mark svg { width: 18px; height: 18px; }
+    .brand em { color: var(--green); font-style: normal; }
+    .service { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #dfa441; box-shadow: 0 0 0 3px #f4e9d1; }
+    .dot.ready { background: #43a574; box-shadow: 0 0 0 3px #dff0e5; }
+    .dot.error { background: #c84e42; box-shadow: 0 0 0 3px #f5dfdc; }
+    main { padding: 38px 0 52px; }
+    .workspace { overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); box-shadow: var(--shadow); }
+    .workspace-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 23px 27px; border-bottom: 1px solid var(--line); }
+    .workspace-head h2 { margin: 0; font-size: 15px; font-weight: 690; letter-spacing: -.02em; }
+    .formats { display: flex; gap: 6px; }
+    .format { padding: 4px 8px; border-radius: 6px; background: #f2f4f1; color: #737d77; font-size: 10px; font-weight: 690; letter-spacing: .04em; }
+    .workspace-body { padding: 27px; }
+    .dropzone {
+      position: relative;
+      min-height: 260px;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      border: 1px dashed #bdc9c0;
+      border-radius: 14px;
+      background: #fbfcfa;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .18s, background .18s, transform .18s;
+    }
+    .dropzone:hover, .dropzone.dragging { border-color: var(--green); background: #f3f8f4; }
+    .dropzone.dragging { transform: scale(.995); }
+    .dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .upload-icon { width: 52px; height: 52px; display: grid; place-items: center; margin: 0 auto 15px; border: 1px solid #e2e9e3; border-radius: 16px; background: white; color: var(--green); box-shadow: 0 5px 18px rgba(30, 75, 50, .06); }
+    .upload-icon svg { width: 23px; height: 23px; }
+    .drop-title { margin: 0; font-weight: 680; font-size: 15px; }
+    .drop-title span { color: var(--green); }
+    .drop-hint { margin: 5px 0 0; color: #87908b; font-size: 12px; }
+    .controls { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 18px; }
+    .file-info { min-width: 0; color: var(--muted); font-size: 12px; }
+    .file-name { overflow: hidden; max-width: 480px; color: var(--ink); font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { margin-top: 2px; color: #8a938e; }
+    .actions { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+    .button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid transparent; border-radius: 9px; font-size: 12px; font-weight: 690; text-decoration: none; cursor: pointer; transition: background .18s, border .18s, transform .18s; }
+    .button:active { transform: translateY(1px); }
+    .button-primary { color: white; background: var(--green); }
+    .button-primary:hover:not(:disabled) { background: var(--green-dark); }
+    .button-primary:disabled { background: #aebbb2; cursor: not-allowed; }
+    .button-quiet { color: #59645e; background: white; border-color: var(--line); }
+    .button-quiet:hover { background: #f7f8f6; }
+    .button svg { width: 15px; height: 15px; }
+    .status { min-height: 20px; margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .status.error { color: #b64237; }
+    .status.success { color: var(--green); }
+    .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.45); border-top-color: white; border-radius: 50%; animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .results { margin-top: 25px; padding-top: 24px; border-top: 1px solid var(--line); }
+    .results-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+    .results-head h3 { margin: 0; font-size: 14px; font-weight: 690; }
+    .results-head p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .background-tools { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .background-tools-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+    .background-tools-head h3 { margin: 0; font-size: 14px; font-weight: 690; }
+    .background-tools-head p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .background-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .background-picker { width: 38px; height: 38px; padding: 4px; border: 1px solid var(--line); border-radius: 9px; background: white; cursor: pointer; }
+    .composite-preview { margin-top: 12px; }
+    .composite-preview canvas { display: block; max-width: 100%; max-height: 100%; }
+    .preview { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: #f8f9f7; }
+    .preview-label { display: flex; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid var(--line); color: #606b65; background: white; font-size: 10px; font-weight: 680; letter-spacing: .06em; text-transform: uppercase; }
+    .preview-image { height: auto; max-height: min(70vh, 560px); aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; background: #f1f2ef; }
+    .preview-image.checker { background-color: #fff; background-image: linear-gradient(45deg,#e9ece8 25%,transparent 25%),linear-gradient(-45deg,#e9ece8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e9ece8 75%),linear-gradient(-45deg,transparent 75%,#e9ece8 75%); background-size: 20px 20px; background-position: 0 0,0 10px,10px -10px,-10px 0; }
+    .preview-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .download { color: var(--green); background: var(--mint); }
+    .download:hover { background: #d9eadf; }
+    [hidden] { display: none !important; }
+    @media (max-width: 650px) {
+      .shell { width: min(100% - 24px, 540px); }
+      header { height: 66px; }
+      main { padding: 24px 0 36px; }
+      .workspace-head { padding: 17px 16px; }
+      .workspace-body { padding: 16px; }
+      .dropzone { min-height: 220px; }
+      .controls { align-items: flex-start; flex-direction: column; }
+      .actions { width: 100%; }
+      .actions .button { flex: 1; }
+      .compare { grid-template-columns: 1fr; }
+      .preview-image { max-height: min(65vh, 480px); }
+      .results-head { align-items: flex-start; flex-direction: column; }
+      .service { font-size: 0; }
+      .service .dot { margin-right: 3px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5z" fill="currentColor" opacity=".95"/><path d="M14 14h5v5h-5z" fill="currentColor" opacity=".48"/></svg>
+        </div>
+        <span>rembg-rs</span>
+      </div>
+      <div class="service"><span id="serviceDot" class="dot"></span><span id="serviceText">Connecting to model</span></div>
+    </header>
+
+    <main>
+      <section class="workspace" aria-labelledby="workspaceTitle">
+        <div class="workspace-head">
+          <h2 id="workspaceTitle">Remove background</h2>
+          <div class="formats" aria-label="Supported formats"><span class="format">PNG</span><span class="format">JPG</span><span class="format">WEBP</span></div>
+        </div>
+        <div class="workspace-body">
+          <label id="dropzone" class="dropzone" for="fileInput">
+            <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp">
+            <span>
+              <span class="upload-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg></span>
+              <span class="drop-title">Drop an image here or <span>browse files</span></span>
+              <span class="drop-hint">PNG, JPG or WEBP · up to 50 MB</span>
+            </span>
+          </label>
+
+          <div class="controls">
+            <div class="file-info" aria-live="polite">
+              <div id="fileName" class="file-name">No image selected</div>
+              <div id="fileSize" class="file-size">Your image stays at its original dimensions</div>
+            </div>
+            <div class="actions">
+              <button id="resetButton" class="button button-quiet" type="button" hidden>Choose another</button>
+              <button id="removeButton" class="button button-primary" type="button" disabled>
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h14M10 3l7 7-7 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Remove background</span>
+              </button>
+            </div>
+          </div>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+
+          <section id="results" class="results" hidden aria-label="Background removal result">
+            <div class="results-head">
+              <div><h3>Your cutout is ready</h3><p>Transparent background · full-size PNG · <span id="processingTime">Ready</span></p></div>
+              <a id="downloadButton" class="button download" download="rmbg-cutout.png" href="#">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 13v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Download PNG
+              </a>
+            </div>
+            <div class="compare">
+              <div class="preview">
+                <div class="preview-label"><span>Original</span></div>
+                <div class="preview-image"><img id="originalPreview" alt="Original image preview"></div>
+              </div>
+              <div class="preview">
+                <div class="preview-label"><span>Transparent cutout</span></div>
+                <div class="preview-image checker"><img id="resultPreview" alt="Background-removed image preview"></div>
+              </div>
+            </div>
+            <section class="background-tools" aria-label="Add a background">
+              <div class="background-tools-head">
+                <div><h3>Add a background</h3><p>Choose a photo or use a solid color, then download the composite PNG.</p></div>
+                <a id="compositeDownload" class="button download" href="#" hidden>Download composite</a>
+              </div>
+              <div class="background-actions">
+                <input id="backgroundInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+                <button id="backgroundImageButton" class="button button-quiet" type="button">Choose background photo</button>
+                <label for="backgroundColor" class="file-info">Color</label>
+                <input id="backgroundColor" class="background-picker" type="color" value="#ffffff" aria-label="Background color">
+                <button id="backgroundColorButton" class="button button-quiet" type="button">Use color</button>
+              </div>
+              <p id="backgroundStatus" class="status" role="status" aria-live="polite"></p>
+              <div id="compositePreview" class="preview composite-preview" hidden>
+                <div class="preview-label"><span>Preview with new background</span></div>
+                <div class="preview-image"><canvas id="compositeCanvas" aria-label="Composited image preview"></canvas></div>
+              </div>
+            </section>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const fileInput = document.querySelector("#fileInput");
+    const dropzone = document.querySelector("#dropzone");
+    const removeButton = document.querySelector("#removeButton");
+    const resetButton = document.querySelector("#resetButton");
+    const fileName = document.querySelector("#fileName");
+    const fileSize = document.querySelector("#fileSize");
+    const status = document.querySelector("#status");
+    const results = document.querySelector("#results");
+    const originalPreview = document.querySelector("#originalPreview");
+    const resultPreview = document.querySelector("#resultPreview");
+    const downloadButton = document.querySelector("#downloadButton");
+    const processingTime = document.querySelector("#processingTime");
+    const backgroundInput = document.querySelector("#backgroundInput");
+    const backgroundImageButton = document.querySelector("#backgroundImageButton");
+    const backgroundColor = document.querySelector("#backgroundColor");
+    const backgroundColorButton = document.querySelector("#backgroundColorButton");
+    const backgroundStatus = document.querySelector("#backgroundStatus");
+    const compositePreview = document.querySelector("#compositePreview");
+    const compositeCanvas = document.querySelector("#compositeCanvas");
+    const compositeDownload = document.querySelector("#compositeDownload");
+    const serviceDot = document.querySelector("#serviceDot");
+    const serviceText = document.querySelector("#serviceText");
+    let selectedFile = null;
+    let sourceUrl = null;
+    let resultUrl = null;
+    let backgroundUrl = null;
+    let compositeBackground = null;
+    let compositeColor = null;
+    let busy = false;
+
+    function setService(ready, message) {
+      serviceDot.className = `dot ${ready ? "ready" : "error"}`;
+      serviceText.textContent = message;
+    }
+
+    fetch("/health").then(response => {
+      if (!response.ok) throw new Error("Model service is unavailable");
+      setService(true, "Model ready");
+    }).catch(() => setService(false, "Model unavailable"));
+
+    function formatSize(bytes) {
+      return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function clearUrl(url) {
+      if (url) URL.revokeObjectURL(url);
+    }
+
+    function resetBackground() {
+      clearUrl(backgroundUrl);
+      backgroundUrl = null;
+      compositeBackground = null;
+      compositeColor = null;
+      backgroundInput.value = "";
+      compositeCanvas.width = 0;
+      compositeCanvas.height = 0;
+      compositeCanvas.style.width = "";
+      compositeCanvas.style.height = "";
+      compositePreview.hidden = true;
+      compositeDownload.hidden = true;
+      backgroundStatus.textContent = "";
+      backgroundStatus.className = "status";
+    }
+
+    function renderComposite() {
+      if (!resultPreview.complete || !resultPreview.naturalWidth || (!compositeBackground && !compositeColor)) return;
+      const width = resultPreview.naturalWidth;
+      const height = resultPreview.naturalHeight;
+      compositeCanvas.width = width;
+      compositeCanvas.height = height;
+      const context = compositeCanvas.getContext("2d");
+      if (compositeColor) {
+        context.fillStyle = compositeColor;
+        context.fillRect(0, 0, width, height);
+      } else {
+        const scale = Math.max(width / compositeBackground.naturalWidth, height / compositeBackground.naturalHeight);
+        const drawWidth = compositeBackground.naturalWidth * scale;
+        const drawHeight = compositeBackground.naturalHeight * scale;
+        context.drawImage(compositeBackground, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+      }
+      context.drawImage(resultPreview, 0, 0, width, height);
+      compositePreview.hidden = false;
+      fitCompositeCanvas();
+      compositeDownload.hidden = false;
+    }
+
+    function fitCompositeCanvas() {
+      const frame = compositeCanvas.parentElement;
+      if (!frame || !compositeCanvas.width || !compositeCanvas.height) return;
+      const scale = Math.min(
+        1,
+        frame.clientWidth / compositeCanvas.width,
+        frame.clientHeight / compositeCanvas.height
+      );
+      compositeCanvas.style.width = `${Math.floor(compositeCanvas.width * scale)}px`;
+      compositeCanvas.style.height = `${Math.floor(compositeCanvas.height * scale)}px`;
+    }
+
+    function setPreviewAspectRatio() {
+      if (!originalPreview.naturalWidth || !originalPreview.naturalHeight) return;
+      const ratio = `${originalPreview.naturalWidth} / ${originalPreview.naturalHeight}`;
+      document.querySelectorAll(".preview-image").forEach(frame => {
+        frame.style.aspectRatio = ratio;
+      });
+      fitCompositeCanvas();
+    }
+
+    function formatDuration(milliseconds) {
+      if (milliseconds < 1000) return `${Math.round(milliseconds)} ms`;
+      const seconds = milliseconds / 1000;
+      if (seconds < 60) return `${seconds.toFixed(1)} s`;
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes} min ${Math.round(seconds % 60)} s`;
+    }
+
+    function setBackgroundStatus(message, isError = false) {
+      backgroundStatus.textContent = message;
+      backgroundStatus.className = `status${isError ? " error" : ""}`;
+    }
+
+    resultPreview.addEventListener("load", renderComposite);
+    originalPreview.addEventListener("load", setPreviewAspectRatio);
+    window.addEventListener("resize", fitCompositeCanvas);
+    backgroundImageButton.addEventListener("click", () => backgroundInput.click());
+    backgroundInput.addEventListener("change", () => {
+      const file = backgroundInput.files[0];
+      if (!file) return;
+      backgroundInput.value = "";
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+        setBackgroundStatus("Choose a PNG, JPG or WEBP background image.", true);
+        return;
+      }
+      clearUrl(backgroundUrl);
+      backgroundUrl = URL.createObjectURL(file);
+      const image = new Image();
+      const imageUrl = backgroundUrl;
+      image.onload = () => {
+        if (backgroundUrl !== imageUrl) return;
+        compositeBackground = image;
+        compositeColor = null;
+        renderComposite();
+        setBackgroundStatus("Background photo added.");
+      };
+      image.onerror = () => {
+        if (backgroundUrl === imageUrl) setBackgroundStatus("Could not read that background image.", true);
+      };
+      image.src = imageUrl;
+    });
+    backgroundColorButton.addEventListener("click", () => {
+      compositeBackground = null;
+      compositeColor = backgroundColor.value;
+      renderComposite();
+      setBackgroundStatus("Solid background added.");
+    });
+    compositeDownload.addEventListener("click", event => {
+      event.preventDefault();
+      compositeCanvas.toBlob(blob => {
+        if (!blob) {
+          setBackgroundStatus("Could not create the composite PNG. Try a smaller image.", true);
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${selectedFile.name.replace(/\.[^.]+$/, "") || "image"}-composite.png`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }, "image/png");
+    });
+
+    function chooseFile(file) {
+      if (!file) return;
+      if (busy) {
+        status.textContent = "Wait for the current image to finish processing.";
+        status.className = "status";
+        return;
+      }
+      const supportedType = /^image\/(png|jpeg|webp)$/.test(file.type);
+      const supportedName = /\.(png|jpe?g|webp)$/i.test(file.name);
+      if (!supportedType && !supportedName) {
+        status.textContent = "Choose a PNG, JPG or WEBP image.";
+        status.className = "status error";
+        return;
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        status.textContent = "This image is larger than the 50 MB upload limit.";
+        status.className = "status error";
+        return;
+      }
+      selectedFile = file;
+      resetBackground();
+      clearUrl(sourceUrl);
+      clearUrl(resultUrl);
+      sourceUrl = URL.createObjectURL(file);
+      resultUrl = null;
+      originalPreview.src = sourceUrl;
+      resultPreview.removeAttribute("src");
+      results.hidden = true;
+      fileName.textContent = file.name;
+      fileSize.textContent = `${formatSize(file.size)} · original size preserved`;
+      status.textContent = "Ready to process.";
+      status.className = "status";
+      removeButton.disabled = false;
+      removeButton.querySelector("span").textContent = "Remove background";
+      resetButton.hidden = false;
+    }
+
+    fileInput.addEventListener("change", () => chooseFile(fileInput.files[0]));
+    for (const eventName of ["dragenter", "dragover"]) {
+      dropzone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropzone.classList.add("dragging");
+      });
+    }
+    for (const eventName of ["dragleave", "drop"]) {
+      dropzone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropzone.classList.remove("dragging");
+      });
+    }
+    dropzone.addEventListener("drop", event => chooseFile(event.dataTransfer.files[0]));
+
+    removeButton.addEventListener("click", async () => {
+      if (!selectedFile || busy) return;
+      busy = true;
+      const startedAt = performance.now();
+      resetBackground();
+      removeButton.disabled = true;
+      removeButton.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Working…</span>';
+      status.textContent = "Running the model. Larger images can take a little longer.";
+      status.className = "status";
+      processingTime.textContent = "Processing…";
+      results.hidden = true;
+      try {
+        const response = await fetch("/remove", {
+          method: "POST",
+          headers: { "Content-Type": selectedFile.type },
+          body: selectedFile
+        });
+        if (!response.ok) {
+          const detail = await response.text();
+          if (/CUDA_ERROR_OUT_OF_MEMORY|out of memory/i.test(detail)) {
+            throw new Error("GPU memory ran out. Restart the server with --vae-device cpu to leave more GPU memory for the denoiser.");
+          }
+          throw new Error(detail || `Request failed (${response.status})`);
+        }
+        const result = await response.blob();
+        const elapsed = formatDuration(performance.now() - startedAt);
+        clearUrl(resultUrl);
+        resultUrl = URL.createObjectURL(result);
+        resultPreview.src = resultUrl;
+        downloadButton.href = resultUrl;
+        downloadButton.download = `${selectedFile.name.replace(/\.[^.]+$/, "") || "image"}-cutout.png`;
+        results.hidden = false;
+        processingTime.textContent = `Processed in ${elapsed}`;
+        status.textContent = `Background removed in ${elapsed}.`;
+        status.className = "status success";
+      } catch (error) {
+        status.textContent = error.message || "Could not process this image.";
+        status.className = "status error";
+      } finally {
+        busy = false;
+        removeButton.disabled = !selectedFile;
+        removeButton.innerHTML = '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h14M10 3l7 7-7 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Remove background</span>';
+      }
+    });
+
+    resetButton.addEventListener("click", () => {
+      selectedFile = null;
+      resetBackground();
+      fileInput.value = "";
+      clearUrl(sourceUrl);
+      clearUrl(resultUrl);
+      sourceUrl = null;
+      resultUrl = null;
+      originalPreview.removeAttribute("src");
+      resultPreview.removeAttribute("src");
+      results.hidden = true;
+      fileName.textContent = "No image selected";
+      fileSize.textContent = "Your image stays at its original dimensions";
+      status.textContent = "";
+      status.className = "status";
+      removeButton.disabled = true;
+      resetButton.hidden = true;
+    });
+  </script>
+</body>
+</html>

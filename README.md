@@ -2,7 +2,7 @@
 
 **RMBG-3.0 background removal in native Rust.** Run the Bria model locally from a command line, a small web UI, or an HTTP endpoint. The native path uses Candle and an INT8 ConvRot transformer; Python and ComfyUI are optional reference backends.
 
-[Project site](https://apiplant.github.io/rembg-rs/) · [Performance notes](docs/performance.md) · [RMBG-3.0 model card](https://huggingface.co/briaai/RMBG-3.0)
+[Project site](https://rembg-rs.apiplant.com/) · [Performance notes](docs/performance.md) · [RMBG-3.0 model card](https://huggingface.co/briaai/RMBG-3.0)
 
 > **Model license:** Bria's RMBG-3.0 weights are CC BY-NC 4.0. Commercial use requires a separate Bria license. This repository's Rust code is MIT licensed.
 

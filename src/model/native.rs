@@ -35,27 +35,13 @@ impl NativePipeline {
         device_name: &str,
         vae_device_name: &str,
     ) -> Result<Self> {
+        crate::download::ensure_models(models_dir)?;
         let dit_path = models_dir.join("diffusion_models/rmbg3_int8_convrot.safetensors");
         let qwen_path = models_dir.join("text_encoders/qwen3vl_4b_int8_convrot.safetensors");
         let vae_path = models_dir.join("vae/flux2-vae.safetensors");
         let metadata_dir = models_dir.join("qwen3vl");
         let config_path = metadata_dir.join("config.json");
         let tokenizer_path = metadata_dir.join("tokenizer.json");
-        for path in [
-            &dit_path,
-            &qwen_path,
-            &vae_path,
-            &config_path,
-            &tokenizer_path,
-        ] {
-            if !path.is_file() {
-                bail!(
-                    "native model file missing: {} (run `rembg-rs fetch-comfy` or set --models-dir)",
-                    path.display()
-                );
-            }
-        }
-
         let device = select_device(device_name)?;
         // Qwen and Fibo together exceed 24 GiB. Keep the 4B Qwen encoder in
         // system memory and run the 8B denoiser on the selected accelerator.

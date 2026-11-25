@@ -1,0 +1,16 @@
+Package: rembg-rs-cuda
+Version: @VERSION@
+Section: graphics
+Priority: optional
+Architecture: amd64
+Maintainer: ApiPlant <releases@apiplant.com>
+Installed-Size: @INSTALLED_SIZE@
+Depends: libc6 (>= 2.35), libcuda1
+Conflicts: rembg-rs
+Replaces: rembg-rs
+Provides: rembg-rs
+Homepage: https://rembg-rs.apiplant.com
+Description: Native Rust background removal with CUDA acceleration
+ Remove image backgrounds locally using Bria RMBG-3.0. This build uses
+ NVIDIA CUDA 12.1 and requires a compatible host driver and CUDA runtime.
+ The model weights download automatically on first use.

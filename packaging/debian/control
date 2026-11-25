@@ -1,0 +1,12 @@
+Package: rembg-rs
+Version: @VERSION@
+Section: graphics
+Priority: optional
+Architecture: @ARCH@
+Maintainer: ApiPlant <releases@apiplant.com>
+Installed-Size: @INSTALLED_SIZE@
+Depends: libc6 (>= @GLIBC@)
+Homepage: https://rembg-rs.apiplant.com
+Description: Native Rust background removal with Bria RMBG-3.0
+ Remove image backgrounds locally using the RMBG-3.0 model and a Rust
+ inference pipeline. The model weights download automatically on first use.

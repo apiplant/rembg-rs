@@ -1,7 +1,7 @@
 # rembg-rs site
 
-Static project site for [rembg-rs](https://github.com/apiplant/rembg-rs), served at [rembg-rs.apiplant.com](https://rembg-rs.apiplant.com/) through Cloudflare Pages.
+SolidJS 2 project site for [rembg-rs](https://github.com/apiplant/rembg-rs), published with Cloudflare Pages at [rembg-rs.apiplant.com](https://rembg-rs.apiplant.com/).
 
-There is no build step. The `rembg-rs-website` Cloudflare Pages project is Git-connected to this repository. Its production branch is `main`, with root directory `/website`, an empty build command, and `.` as the output directory. Pushes to `main` publish automatically; other branches use Cloudflare preview URLs.
+The app follows the Vite, Solid, and Tailwind setup used by gliner-rs. Cloudflare Pages should use /website as its root, pnpm install --frozen-lockfile && pnpm build as its build command, and dist as its output directory. Git-connected production deploys from main; pushes to that branch update the site.
 
-The source is plain HTML, CSS, and SVG. Keep the deployment root pointed at `website/`; the server upload UI lives separately in `../ui/`.
+The hero comparison uses the actual 512 × 512 input portrait and its RMBG-3.0 output in public/assets/. The runnable image processing UI is served separately by rembg-rs serve.

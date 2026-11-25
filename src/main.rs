@@ -1,21 +1,17 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use ntex::web;
-use rembg_rs::{Config, Rmbg, default_models_dir, script_path};
+use rembg_rs::{Config, Rmbg, default_models_dir, download::ensure_models};
 use std::{path::PathBuf, sync::mpsc};
 
 #[derive(Parser)]
 #[command(name = "rembg-rs", version, about = "RMBG-3.0 background removal")]
 struct Args {
-    #[arg(long, global = true, env = "RMBG_PYTHON", default_value = "python3")]
-    python: String,
-    #[arg(long, global = true, env = "RMBG_DEVICE", default_value = "cuda")]
+    #[arg(long, global = true, env = "RMBG_DEVICE", default_value = if cfg!(feature = "cuda") { "cuda" } else { "cpu" })]
     device: String,
     /// Device for the FLUX.2 VAE (`auto`, `cpu`, `same`, `cuda`, or `cuda:N`).
     #[arg(long, global = true, env = "RMBG_VAE_DEVICE", default_value = "auto")]
     vae_device: String,
-    #[arg(long, global = true, env = "RMBG_CACHE_DIR")]
-    cache_dir: Option<PathBuf>,
     #[arg(
         long,
         global = true,
@@ -23,29 +19,6 @@ struct Args {
         default_value_os_t = default_models_dir()
     )]
     models_dir: PathBuf,
-    #[arg(
-        long,
-        global = true,
-        env = "RMBG_MODEL_ID",
-        default_value = "briaai/RMBG-3.0"
-    )]
-    model_id: String,
-    #[arg(
-        long,
-        global = true,
-        env = "RMBG_BASE_MODEL_ID",
-        default_value = "briaai/Fibo-2.0-edit-turbo"
-    )]
-    base_model_id: String,
-    #[arg(long, global = true, env = "RMBG_BACKEND", default_value = "native")]
-    backend: String,
-    #[arg(
-        long,
-        global = true,
-        env = "RMBG_COMFY_URL",
-        default_value = "http://127.0.0.1:8188"
-    )]
-    comfy_url: String,
     #[command(subcommand)]
     command: Action,
 }
@@ -87,28 +60,14 @@ struct InferenceJob {
 async fn main() -> Result<()> {
     let args = Args::parse();
     let mut config = Config::default();
-    config.python = args.python;
     config.device = args.device;
     config.vae_device = args.vae_device;
-    config.model_id = args.model_id;
-    config.base_model_id = args.base_model_id;
-    config.backend = args.backend;
-    config.comfy_url = args.comfy_url;
     config.models_dir = args.models_dir;
-    if let Some(path) = args.cache_dir {
-        config.cache_dir = path;
-    }
     match args.command {
         Action::FetchComfy { comfy_models_dir } => {
             let comfy_models_dir = comfy_models_dir.unwrap_or(config.models_dir);
-            let status = std::process::Command::new(&config.python)
-                .arg(script_path("fetch_comfy.py"))
-                .arg(comfy_models_dir)
-                .env("HF_HOME", &config.cache_dir)
-                .status()?;
-            if !status.success() {
-                anyhow::bail!("quantized model download failed");
-            }
+            ensure_models(&comfy_models_dir)?;
+            eprintln!("Model files ready in {}", comfy_models_dir.display());
         }
         Action::Remove { input, output } => {
             let model = Rmbg::new(config)?;
@@ -130,8 +89,7 @@ async fn main() -> Result<()> {
             let max_upload_bytes = max_upload_mib
                 .checked_mul(1024 * 1024)
                 .ok_or_else(|| anyhow::anyhow!("--max-upload-mib is too large"))?;
-            eprintln!("loading {} on {}", config.backend, config.device);
-            let backend = config.backend.clone();
+            eprintln!("loading native on {}", config.device);
             let device = config.device.clone();
             let model = Rmbg::new(config)?;
             let (worker_tx, worker_rx) = mpsc::sync_channel::<InferenceJob>(queue_size);
@@ -155,14 +113,14 @@ async fn main() -> Result<()> {
                     )))
             })
             .bind(&addr, ntex::SharedCfg::default())?;
-            print_server_ready(&addr, &backend, &device);
+            print_server_ready(&addr, &device);
             server.run().await?;
         }
     }
     Ok(())
 }
 
-fn print_server_ready(addr: &str, backend: &str, device: &str) {
+fn print_server_ready(addr: &str, device: &str) {
     use std::io::IsTerminal;
     let tty = std::io::stderr().is_terminal();
     let color = |code: &str, text: &str| {
@@ -191,7 +149,7 @@ fn print_server_ready(addr: &str, backend: &str, device: &str) {
         color("38;5;215", "API      "),
         color("2", "POST")
     );
-    eprintln!("  {}  {} on {}", color("2", "model    "), backend, device);
+    eprintln!("  {}  native on {}", color("2", "model    "), device);
     eprintln!();
 }
 

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use ntex::web;
-use rembg_rs::{Config, Rmbg, default_models_dir, download::ensure_models};
+use rembg_rs_bria::{Config, Rmbg, default_models_dir, download::ensure_models};
 use std::{path::PathBuf, sync::mpsc};
 
 #[derive(Parser)]

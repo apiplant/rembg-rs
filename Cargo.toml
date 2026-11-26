@@ -1,5 +1,5 @@
 [package]
-name = "rembg-rs"
+name = "rembg-rs-bria"
 version = "0.1.2"
 edition = "2024"
 description = "Rust host for Bria RMBG-3.0 background removal"
@@ -8,6 +8,10 @@ readme = "README.md"
 repository = "https://github.com/apiplant/rembg-rs"
 homepage = "https://rembg-rs.apiplant.com"
 include = ["Cargo.toml", "README.md", "LICENSE", "src/**", "ui/index.html", "!website/**", "!packaging/**"]
+
+[[bin]]
+name = "rembg-rs"
+path = "src/main.rs"
 
 [features]
 default = []

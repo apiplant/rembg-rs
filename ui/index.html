@@ -106,6 +106,33 @@
     .preview-image { height: auto; max-height: min(70vh, 560px); aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; background: #f1f2ef; }
     .preview-image.checker { background-color: #fff; background-image: linear-gradient(45deg,#e9ece8 25%,transparent 25%),linear-gradient(-45deg,#e9ece8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e9ece8 75%),linear-gradient(-45deg,transparent 75%,#e9ece8 75%); background-size: 20px 20px; background-position: 0 0,0 10px,10px -10px,-10px 0; }
     .preview-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .selected-preview { margin-top: 20px; }
+    .selected-preview .preview-image { height: min(62vh, 520px); min-height: 230px; }
+    .selected-preview .preview-image img { width: 100%; height: 100%; object-fit: contain; }
+    .preview-meta { color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+    .background-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .control-group { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 650; }
+    .control-group select { min-height: 37px; max-width: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 0 30px 0 10px; background: white; color: var(--ink); font-size: 11px; }
+    .tool-label { width: 100%; margin-top: 8px; color: var(--muted); font-size: 10px; font-weight: 650; }
+    .layer-switch { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: #f4f5f3; }
+    .layer-switch button { min-height: 30px; border: 0; border-radius: 6px; padding: 0 10px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 650; cursor: pointer; }
+    .layer-switch button[aria-pressed="true"] { background: white; color: var(--green); box-shadow: 0 1px 3px #18201d18; }
+    .range-control { display: grid; min-width: min(220px, 100%); flex: 1 1 190px; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 650; }
+    .range-heading { display: flex; justify-content: space-between; gap: 12px; }
+    .range-heading output { color: var(--ink); font-variant-numeric: tabular-nums; }
+    .range-control input { width: 100%; accent-color: var(--green); }
+    .composite-preview { margin-top: 12px; }
+    .composite-viewport { display: grid; width: 100%; height: min(72vh, 700px); min-height: 330px; place-items: center; overflow: hidden; background: #eff1ee; }
+    .composite-stage { position: relative; flex: none; overflow: hidden; background: white; touch-action: none; user-select: none; }
+    .composite-background { position: absolute; max-width: none; pointer-events: none; user-select: none; }
+    .composite-subject { position: absolute; z-index: 2; border: 1px dashed #fff; outline: 1px solid #1b5f4238; cursor: grab; touch-action: none; }
+    .composite-subject:active { cursor: grabbing; }
+    .composite-subject img { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
+    .resize-handle { position: absolute; right: -9px; bottom: -9px; width: 19px; height: 19px; border: 2px solid white; border-radius: 50%; background: var(--green); box-shadow: 0 1px 5px #0005; cursor: nwse-resize; touch-action: none; }
+    .composite-stage.drag-subject .composite-subject { outline: 2px solid var(--green); }
+    .composite-stage.drag-background { cursor: move; }
+    .composite-stage.drag-background .composite-subject { pointer-events: none; }
+    .composite-tip { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
     .download { color: var(--green); background: var(--mint); }
     .download:hover { background: #d9eadf; }
     [hidden] { display: none !important; }
@@ -121,6 +148,12 @@
       .actions .button { flex: 1; }
       .compare { grid-template-columns: 1fr; }
       .preview-image { max-height: min(65vh, 480px); }
+      .selected-preview .preview-image { height: min(58vh, 480px); }
+      .composite-viewport { min-height: 260px; height: min(64vh, 580px); }
+      .background-controls { align-items: stretch; }
+      .control-group { flex: 1 1 135px; }
+      .control-group select { max-width: none; width: 100%; }
+      .range-control { flex-basis: 100%; }
       .results-head { align-items: flex-start; flex-direction: column; }
       .service { font-size: 0; }
       .service .dot { margin-right: 3px; }
@@ -154,6 +187,11 @@
               <span class="drop-hint">PNG, JPG or WEBP · up to 50 MB</span>
             </span>
           </label>
+
+          <div id="selectedPreviewPanel" class="selected-preview preview" hidden>
+            <div class="preview-label"><span>Photo to remove background from</span><span id="selectedPreviewDimensions" class="preview-meta"></span></div>
+            <div class="preview-image"><img id="selectedPreview" alt="Selected photo preview before background removal"></div>
+          </div>
 
           <div class="controls">
             <div class="file-info" aria-live="polite">
@@ -190,7 +228,7 @@
             </div>
             <section class="background-tools" aria-label="Add a background">
               <div class="background-tools-head">
-                <div><h3>Add a background</h3><p>Choose a photo or use a solid color, then download the composite PNG.</p></div>
+                <div><h3>Add a background</h3><p>Position and size the cutout over a photo, or use a solid color.</p></div>
                 <a id="compositeDownload" class="button download" href="#" hidden>Download composite</a>
               </div>
               <div class="background-actions">
@@ -200,11 +238,52 @@
                 <input id="backgroundColor" class="background-picker" type="color" value="#ffffff" aria-label="Background color">
                 <button id="backgroundColorButton" class="button button-quiet" type="button">Use color</button>
               </div>
+              <div class="background-controls">
+                <label class="control-group">Frame
+                  <select id="frameRatio">
+                    <option value="background">Background photo</option>
+                    <option value="source">Original photo</option>
+                    <option value="1">Square · 1:1</option>
+                    <option value="1.333333">Landscape · 4:3</option>
+                    <option value="1.777778">Widescreen · 16:9</option>
+                    <option value="0.8">Portrait · 4:5</option>
+                  </select>
+                </label>
+                <label class="control-group">Photo framing
+                  <select id="backgroundFit">
+                    <option value="contain">Show full photo</option>
+                    <option value="cover">Crop to fill frame</option>
+                  </select>
+                </label>
+                <div class="layer-switch" role="group" aria-label="Choose which layer to move">
+                  <button id="moveSubjectButton" type="button" aria-pressed="true">Move cutout</button>
+                  <button id="moveBackgroundButton" type="button" aria-pressed="false">Move background</button>
+                </div>
+                <label class="range-control">
+                  <span class="range-heading"><span>Cutout size</span><output id="subjectScaleOutput">100%</output></span>
+                  <input id="subjectScale" type="range" min="25" max="200" step="1" value="100" aria-label="Cutout size">
+                </label>
+                <label class="range-control">
+                  <span class="range-heading"><span>Background zoom</span><output id="backgroundScaleOutput">100%</output></span>
+                  <input id="backgroundScale" type="range" min="50" max="250" step="1" value="100" aria-label="Background zoom">
+                </label>
+                <button id="centerLayerButton" class="button button-quiet" type="button">Center cutout</button>
+              </div>
+              <p class="composite-tip">Drag the selected layer to position it. Use the cutout corner handle or size slider to resize it. “Show full photo” keeps the entire background visible; crop mode lets you frame it.</p>
               <p id="backgroundStatus" class="status" role="status" aria-live="polite"></p>
               <div id="compositePreview" class="preview composite-preview" hidden>
-                <div class="preview-label"><span>Preview with new background</span></div>
-                <div class="preview-image"><canvas id="compositeCanvas" aria-label="Composited image preview"></canvas></div>
+                <div class="preview-label"><span>Preview with new background</span><span id="compositeDimensions" class="preview-meta"></span></div>
+                <div id="compositeViewport" class="composite-viewport">
+                  <div id="compositeStage" class="composite-stage" aria-label="Composite preview. Drag the selected layer to position it.">
+                    <img id="backgroundLayer" class="composite-background" alt="" draggable="false">
+                    <div id="subjectLayer" class="composite-subject">
+                      <img id="compositeSubjectImage" alt="" draggable="false">
+                      <button id="subjectResizeHandle" class="resize-handle" type="button" aria-label="Drag to resize cutout"></button>
+                    </div>
+                  </div>
+                </div>
               </div>
+              <canvas id="compositeCanvas" hidden></canvas>
             </section>
           </section>
         </div>
@@ -221,6 +300,9 @@
     const fileSize = document.querySelector("#fileSize");
     const status = document.querySelector("#status");
     const results = document.querySelector("#results");
+    const selectedPreviewPanel = document.querySelector("#selectedPreviewPanel");
+    const selectedPreview = document.querySelector("#selectedPreview");
+    const selectedPreviewDimensions = document.querySelector("#selectedPreviewDimensions");
     const originalPreview = document.querySelector("#originalPreview");
     const resultPreview = document.querySelector("#resultPreview");
     const downloadButton = document.querySelector("#downloadButton");
@@ -231,113 +313,236 @@
     const backgroundColorButton = document.querySelector("#backgroundColorButton");
     const backgroundStatus = document.querySelector("#backgroundStatus");
     const compositePreview = document.querySelector("#compositePreview");
+    const compositeViewport = document.querySelector("#compositeViewport");
+    const compositeStage = document.querySelector("#compositeStage");
+    const backgroundLayer = document.querySelector("#backgroundLayer");
+    const subjectLayer = document.querySelector("#subjectLayer");
+    const compositeSubjectImage = document.querySelector("#compositeSubjectImage");
+    const subjectResizeHandle = document.querySelector("#subjectResizeHandle");
     const compositeCanvas = document.querySelector("#compositeCanvas");
+    const compositeDimensions = document.querySelector("#compositeDimensions");
     const compositeDownload = document.querySelector("#compositeDownload");
+    const frameRatio = document.querySelector("#frameRatio");
+    const backgroundFit = document.querySelector("#backgroundFit");
+    const moveSubjectButton = document.querySelector("#moveSubjectButton");
+    const moveBackgroundButton = document.querySelector("#moveBackgroundButton");
+    const subjectScale = document.querySelector("#subjectScale");
+    const subjectScaleOutput = document.querySelector("#subjectScaleOutput");
+    const backgroundScale = document.querySelector("#backgroundScale");
+    const backgroundScaleOutput = document.querySelector("#backgroundScaleOutput");
+    const centerLayerButton = document.querySelector("#centerLayerButton");
     const serviceDot = document.querySelector("#serviceDot");
     const serviceText = document.querySelector("#serviceText");
+
     let selectedFile = null;
     let sourceUrl = null;
     let resultUrl = null;
     let backgroundUrl = null;
-    let compositeBackground = null;
-    let compositeColor = null;
+    let backgroundImage = null;
+    let backgroundColorValue = null;
     let busy = false;
+    let activeLayer = "subject";
+    let drag = null;
+    const placement = {
+      subjectX: 0.5,
+      subjectY: 0.5,
+      subjectScale: 1,
+      backgroundX: 0,
+      backgroundY: 0,
+      backgroundScale: 1,
+      backgroundFit: "contain"
+    };
 
     function setService(ready, message) {
-      serviceDot.className = `dot ${ready ? "ready" : "error"}`;
+      serviceDot.className = "dot " + (ready ? "ready" : "error");
       serviceText.textContent = message;
     }
 
-    fetch("/health").then(response => {
+    fetch("/health").then(function (response) {
       if (!response.ok) throw new Error("Model service is unavailable");
       setService(true, "Model ready");
-    }).catch(() => setService(false, "Model unavailable"));
+    }).catch(function () {
+      setService(false, "Model unavailable");
+    });
 
     function formatSize(bytes) {
-      return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      return bytes < 1024 * 1024
+        ? Math.max(1, Math.round(bytes / 1024)) + " KB"
+        : (bytes / (1024 * 1024)).toFixed(1) + " MB";
     }
 
     function clearUrl(url) {
       if (url) URL.revokeObjectURL(url);
     }
 
+    function setBackgroundStatus(message, isError) {
+      backgroundStatus.textContent = message;
+      backgroundStatus.className = "status" + (isError ? " error" : "");
+    }
+
     function resetBackground() {
       clearUrl(backgroundUrl);
       backgroundUrl = null;
-      compositeBackground = null;
-      compositeColor = null;
+      backgroundImage = null;
+      backgroundColorValue = null;
       backgroundInput.value = "";
-      compositeCanvas.width = 0;
-      compositeCanvas.height = 0;
-      compositeCanvas.style.width = "";
-      compositeCanvas.style.height = "";
+      backgroundLayer.removeAttribute("src");
+      backgroundLayer.style.display = "none";
+      backgroundFit.value = "contain";
+      frameRatio.value = "background";
+      backgroundScale.value = "100";
+      backgroundScaleOutput.value = "100%";
+      subjectScale.value = "100";
+      subjectScaleOutput.value = "100%";
+      placement.subjectX = 0.5;
+      placement.subjectY = 0.5;
+      placement.subjectScale = 1;
+      placement.backgroundX = 0;
+      placement.backgroundY = 0;
+      placement.backgroundScale = 1;
+      placement.backgroundFit = "contain";
+      compositeStage.style.background = "#ffffff";
+      setActiveLayer("subject");
       compositePreview.hidden = true;
       compositeDownload.hidden = true;
       backgroundStatus.textContent = "";
       backgroundStatus.className = "status";
     }
 
-    function renderComposite() {
-      if (!resultPreview.complete || !resultPreview.naturalWidth || (!compositeBackground && !compositeColor)) return;
-      const width = resultPreview.naturalWidth;
-      const height = resultPreview.naturalHeight;
-      compositeCanvas.width = width;
-      compositeCanvas.height = height;
-      const context = compositeCanvas.getContext("2d");
-      if (compositeColor) {
-        context.fillStyle = compositeColor;
-        context.fillRect(0, 0, width, height);
-      } else {
-        const scale = Math.max(width / compositeBackground.naturalWidth, height / compositeBackground.naturalHeight);
-        const drawWidth = compositeBackground.naturalWidth * scale;
-        const drawHeight = compositeBackground.naturalHeight * scale;
-        context.drawImage(compositeBackground, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+    function getFrameRatio() {
+      const choice = frameRatio.value;
+      if (choice === "source") {
+        const width = originalPreview.naturalWidth || selectedPreview.naturalWidth;
+        const height = originalPreview.naturalHeight || selectedPreview.naturalHeight;
+        return width && height ? width / height : 1;
       }
-      context.drawImage(resultPreview, 0, 0, width, height);
-      compositePreview.hidden = false;
-      fitCompositeCanvas();
+      if (choice === "background" && backgroundImage) {
+        return backgroundImage.naturalWidth / backgroundImage.naturalHeight;
+      }
+      return Number(choice) || 1;
+    }
+
+    function getOutputSize() {
+      const ratio = getFrameRatio();
+      const image = backgroundImage || selectedPreview;
+      const longEdge = Math.max(image.naturalWidth || 1, image.naturalHeight || 1);
+      if (ratio >= 1) return { width: Math.round(longEdge), height: Math.max(1, Math.round(longEdge / ratio)) };
+      return { width: Math.max(1, Math.round(longEdge * ratio)), height: Math.round(longEdge) };
+    }
+
+    function fitCompositeStage() {
+      const bounds = compositeViewport.getBoundingClientRect();
+      const ratio = getFrameRatio();
+      if (!bounds.width || !bounds.height || !ratio) return;
+      const width = Math.max(1, Math.min(bounds.width, bounds.height * ratio));
+      const height = Math.max(1, width / ratio);
+      compositeStage.style.width = Math.floor(width) + "px";
+      compositeStage.style.height = Math.floor(height) + "px";
+      renderLayers();
+    }
+
+    function getBackgroundRect(width, height) {
+      if (!backgroundImage) return null;
+      const xScale = width / backgroundImage.naturalWidth;
+      const yScale = height / backgroundImage.naturalHeight;
+      const fitScale = placement.backgroundFit === "cover" ? Math.max(xScale, yScale) : Math.min(xScale, yScale);
+      const scale = fitScale * placement.backgroundScale;
+      const drawWidth = backgroundImage.naturalWidth * scale;
+      const drawHeight = backgroundImage.naturalHeight * scale;
+      return {
+        left: (width - drawWidth) / 2 + placement.backgroundX * width,
+        top: (height - drawHeight) / 2 + placement.backgroundY * height,
+        width: drawWidth,
+        height: drawHeight
+      };
+    }
+
+    function getSubjectRect(width, height) {
+      if (!resultPreview.naturalWidth || !resultPreview.naturalHeight) return null;
+      const fitScale = Math.min(width * 0.84 / resultPreview.naturalWidth, height * 0.84 / resultPreview.naturalHeight);
+      const scale = fitScale * placement.subjectScale;
+      const drawWidth = resultPreview.naturalWidth * scale;
+      const drawHeight = resultPreview.naturalHeight * scale;
+      return {
+        left: placement.subjectX * width - drawWidth / 2,
+        top: placement.subjectY * height - drawHeight / 2,
+        width: drawWidth,
+        height: drawHeight
+      };
+    }
+
+    function renderLayers() {
+      const width = compositeStage.clientWidth;
+      const height = compositeStage.clientHeight;
+      if (!width || !height) return;
+      compositeStage.style.aspectRatio = String(getFrameRatio());
+      compositeStage.classList.toggle("drag-subject", activeLayer === "subject");
+      compositeStage.classList.toggle("drag-background", activeLayer === "background");
+
+      if (backgroundImage) {
+        const rect = getBackgroundRect(width, height);
+        backgroundLayer.style.display = "block";
+        backgroundLayer.style.left = rect.left + "px";
+        backgroundLayer.style.top = rect.top + "px";
+        backgroundLayer.style.width = rect.width + "px";
+        backgroundLayer.style.height = rect.height + "px";
+      } else {
+        backgroundLayer.style.display = "none";
+      }
+
+      const subject = getSubjectRect(width, height);
+      if (subject) {
+        subjectLayer.style.left = subject.left + "px";
+        subjectLayer.style.top = subject.top + "px";
+        subjectLayer.style.width = subject.width + "px";
+        subjectLayer.style.height = subject.height + "px";
+      }
+
+      const output = getOutputSize();
+      compositeDimensions.textContent = output.width + " × " + output.height;
       compositeDownload.hidden = false;
     }
 
-    function fitCompositeCanvas() {
-      const frame = compositeCanvas.parentElement;
-      if (!frame || !compositeCanvas.width || !compositeCanvas.height) return;
-      const scale = Math.min(
-        1,
-        frame.clientWidth / compositeCanvas.width,
-        frame.clientHeight / compositeCanvas.height
-      );
-      compositeCanvas.style.width = `${Math.floor(compositeCanvas.width * scale)}px`;
-      compositeCanvas.style.height = `${Math.floor(compositeCanvas.height * scale)}px`;
+    function showComposite() {
+      compositePreview.hidden = false;
+      fitCompositeStage();
+      renderLayers();
+    }
+
+    function setActiveLayer(layer) {
+      activeLayer = layer;
+      moveSubjectButton.setAttribute("aria-pressed", String(layer === "subject"));
+      moveBackgroundButton.setAttribute("aria-pressed", String(layer === "background"));
+      centerLayerButton.textContent = layer === "subject" ? "Center cutout" : "Center background";
+      renderLayers();
+    }
+
+    function formatDuration(milliseconds) {
+      if (milliseconds < 1000) return Math.round(milliseconds) + " ms";
+      const seconds = milliseconds / 1000;
+      if (seconds < 60) return seconds.toFixed(1) + " s";
+      return Math.floor(seconds / 60) + " min " + Math.round(seconds % 60) + " s";
     }
 
     function setPreviewAspectRatio() {
       if (!originalPreview.naturalWidth || !originalPreview.naturalHeight) return;
-      const ratio = `${originalPreview.naturalWidth} / ${originalPreview.naturalHeight}`;
-      document.querySelectorAll(".preview-image").forEach(frame => {
+      const ratio = originalPreview.naturalWidth + " / " + originalPreview.naturalHeight;
+      document.querySelectorAll(".compare .preview-image").forEach(function (frame) {
         frame.style.aspectRatio = ratio;
       });
-      fitCompositeCanvas();
     }
 
-    function formatDuration(milliseconds) {
-      if (milliseconds < 1000) return `${Math.round(milliseconds)} ms`;
-      const seconds = milliseconds / 1000;
-      if (seconds < 60) return `${seconds.toFixed(1)} s`;
-      const minutes = Math.floor(seconds / 60);
-      return `${minutes} min ${Math.round(seconds % 60)} s`;
-    }
-
-    function setBackgroundStatus(message, isError = false) {
-      backgroundStatus.textContent = message;
-      backgroundStatus.className = `status${isError ? " error" : ""}`;
-    }
-
-    resultPreview.addEventListener("load", renderComposite);
+    resultPreview.addEventListener("load", function () {
+      compositeSubjectImage.src = resultUrl;
+      renderLayers();
+    });
     originalPreview.addEventListener("load", setPreviewAspectRatio);
-    window.addEventListener("resize", fitCompositeCanvas);
-    backgroundImageButton.addEventListener("click", () => backgroundInput.click());
-    backgroundInput.addEventListener("change", () => {
+    window.addEventListener("resize", fitCompositeStage);
+
+    backgroundImageButton.addEventListener("click", function () {
+      backgroundInput.click();
+    });
+    backgroundInput.addEventListener("change", function () {
       const file = backgroundInput.files[0];
       if (!file) return;
       backgroundInput.value = "";
@@ -349,39 +554,135 @@
       backgroundUrl = URL.createObjectURL(file);
       const image = new Image();
       const imageUrl = backgroundUrl;
-      image.onload = () => {
+      image.onload = function () {
         if (backgroundUrl !== imageUrl) return;
-        compositeBackground = image;
-        compositeColor = null;
-        renderComposite();
-        setBackgroundStatus("Background photo added.");
+        backgroundImage = image;
+        backgroundColorValue = null;
+        placement.backgroundX = 0;
+        placement.backgroundY = 0;
+        placement.backgroundScale = 1;
+        placement.backgroundFit = "contain";
+        backgroundFit.value = "contain";
+        backgroundScale.value = "100";
+        backgroundScaleOutput.value = "100%";
+        frameRatio.value = "background";
+        compositeStage.style.background = "#ffffff";
+        backgroundLayer.src = imageUrl;
+        setActiveLayer("subject");
+        showComposite();
+        setBackgroundStatus("Background photo added. The whole photo is visible; switch to crop mode to fill a different frame.", false);
       };
-      image.onerror = () => {
+      image.onerror = function () {
         if (backgroundUrl === imageUrl) setBackgroundStatus("Could not read that background image.", true);
       };
       image.src = imageUrl;
     });
-    backgroundColorButton.addEventListener("click", () => {
-      compositeBackground = null;
-      compositeColor = backgroundColor.value;
-      renderComposite();
-      setBackgroundStatus("Solid background added.");
+
+    backgroundColorButton.addEventListener("click", function () {
+      clearUrl(backgroundUrl);
+      backgroundUrl = null;
+      backgroundImage = null;
+      backgroundLayer.removeAttribute("src");
+      backgroundLayer.style.display = "none";
+      backgroundColorValue = backgroundColor.value;
+      placement.backgroundX = 0;
+      placement.backgroundY = 0;
+      placement.backgroundScale = 1;
+      compositeStage.style.background = backgroundColorValue;
+      frameRatio.value = "source";
+      showComposite();
+      setBackgroundStatus("Solid background added.", false);
     });
-    compositeDownload.addEventListener("click", event => {
+
+    backgroundFit.addEventListener("change", function () {
+      placement.backgroundFit = backgroundFit.value;
+      renderLayers();
+      setBackgroundStatus(backgroundFit.value === "contain" ? "Showing the full background photo." : "Crop mode fills the frame. Drag the background to choose the crop.", false);
+    });
+
+    frameRatio.addEventListener("change", function () {
+      fitCompositeStage();
+      setBackgroundStatus("Frame changed. Drag the background to adjust its crop if needed.", false);
+    });
+
+    backgroundScale.addEventListener("input", function () {
+      placement.backgroundScale = Number(backgroundScale.value) / 100;
+      backgroundScaleOutput.value = backgroundScale.value + "%";
+      renderLayers();
+    });
+
+    subjectScale.addEventListener("input", function () {
+      placement.subjectScale = Number(subjectScale.value) / 100;
+      subjectScaleOutput.value = subjectScale.value + "%";
+      renderLayers();
+    });
+
+    moveSubjectButton.addEventListener("click", function () {
+      setActiveLayer("subject");
+    });
+    moveBackgroundButton.addEventListener("click", function () {
+      setActiveLayer("background");
+    });
+    centerLayerButton.addEventListener("click", function () {
+      if (activeLayer === "subject") {
+        placement.subjectX = 0.5;
+        placement.subjectY = 0.5;
+      } else {
+        placement.backgroundX = 0;
+        placement.backgroundY = 0;
+        placement.backgroundScale = 1;
+        backgroundScale.value = "100";
+        backgroundScaleOutput.value = "100%";
+      }
+      renderLayers();
+    });
+
+    compositeStage.addEventListener("pointerdown", function (event) {
+      if (event.button !== 0) return;
       event.preventDefault();
-      compositeCanvas.toBlob(blob => {
-        if (!blob) {
-          setBackgroundStatus("Could not create the composite PNG. Try a smaller image.", true);
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${selectedFile.name.replace(/\.[^.]+$/, "") || "image"}-composite.png`;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }, "image/png");
+      const isResize = event.target === subjectResizeHandle;
+      const rect = compositeStage.getBoundingClientRect();
+      const subject = getSubjectRect(rect.width, rect.height);
+      drag = {
+        kind: isResize ? "resize" : activeLayer,
+        startX: event.clientX,
+        startY: event.clientY,
+        subjectX: placement.subjectX,
+        subjectY: placement.subjectY,
+        subjectScale: placement.subjectScale,
+        backgroundX: placement.backgroundX,
+        backgroundY: placement.backgroundY,
+        subjectWidth: subject ? subject.width : 1
+      };
+      compositeStage.setPointerCapture(event.pointerId);
     });
+
+    compositeStage.addEventListener("pointermove", function (event) {
+      if (!drag) return;
+      const rect = compositeStage.getBoundingClientRect();
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (drag.kind === "subject") {
+        placement.subjectX = drag.subjectX + dx / rect.width;
+        placement.subjectY = drag.subjectY + dy / rect.height;
+      } else if (drag.kind === "background") {
+        placement.backgroundX = drag.backgroundX + dx / rect.width;
+        placement.backgroundY = drag.backgroundY + dy / rect.height;
+      } else {
+        const factor = Math.max(0.1, 1 + (dx - dy) / Math.max(100, drag.subjectWidth * 1.5));
+        placement.subjectScale = Math.max(0.25, Math.min(2, drag.subjectScale * factor));
+        subjectScale.value = String(Math.round(placement.subjectScale * 100));
+        subjectScaleOutput.value = subjectScale.value + "%";
+      }
+      renderLayers();
+    });
+
+    function endDrag() {
+      drag = null;
+    }
+    compositeStage.addEventListener("pointerup", endDrag);
+    compositeStage.addEventListener("pointercancel", endDrag);
+    compositeStage.addEventListener("lostpointercapture", endDrag);
 
     function chooseFile(file) {
       if (!file) return;
@@ -408,34 +709,45 @@
       clearUrl(resultUrl);
       sourceUrl = URL.createObjectURL(file);
       resultUrl = null;
+      selectedPreview.src = sourceUrl;
       originalPreview.src = sourceUrl;
       resultPreview.removeAttribute("src");
+      compositeSubjectImage.removeAttribute("src");
+      selectedPreviewPanel.hidden = false;
+      selectedPreviewDimensions.textContent = "Loading dimensions…";
+      selectedPreview.onload = function () {
+        selectedPreviewDimensions.textContent = selectedPreview.naturalWidth + " × " + selectedPreview.naturalHeight;
+      };
       results.hidden = true;
       fileName.textContent = file.name;
-      fileSize.textContent = `${formatSize(file.size)} · original size preserved`;
-      status.textContent = "Ready to process.";
+      fileSize.textContent = formatSize(file.size) + " · original size preserved";
+      status.textContent = "Preview ready. Remove the background when you’re ready.";
       status.className = "status";
       removeButton.disabled = false;
-      removeButton.querySelector("span").textContent = "Remove background";
       resetButton.hidden = false;
     }
 
-    fileInput.addEventListener("change", () => chooseFile(fileInput.files[0]));
-    for (const eventName of ["dragenter", "dragover"]) {
-      dropzone.addEventListener(eventName, event => {
+    fileInput.addEventListener("change", function () {
+      chooseFile(fileInput.files[0]);
+    });
+
+    ["dragenter", "dragover"].forEach(function (eventName) {
+      dropzone.addEventListener(eventName, function (event) {
         event.preventDefault();
         dropzone.classList.add("dragging");
       });
-    }
-    for (const eventName of ["dragleave", "drop"]) {
-      dropzone.addEventListener(eventName, event => {
+    });
+    ["dragleave", "drop"].forEach(function (eventName) {
+      dropzone.addEventListener(eventName, function (event) {
         event.preventDefault();
         dropzone.classList.remove("dragging");
       });
-    }
-    dropzone.addEventListener("drop", event => chooseFile(event.dataTransfer.files[0]));
+    });
+    dropzone.addEventListener("drop", function (event) {
+      chooseFile(event.dataTransfer.files[0]);
+    });
 
-    removeButton.addEventListener("click", async () => {
+    removeButton.addEventListener("click", async function () {
       if (!selectedFile || busy) return;
       busy = true;
       const startedAt = performance.now();
@@ -457,7 +769,7 @@
           if (/CUDA_ERROR_OUT_OF_MEMORY|out of memory/i.test(detail)) {
             throw new Error("GPU memory ran out. Restart the server with --vae-device cpu to leave more GPU memory for the denoiser.");
           }
-          throw new Error(detail || `Request failed (${response.status})`);
+          throw new Error(detail || "Request failed (" + response.status + ")");
         }
         const result = await response.blob();
         const elapsed = formatDuration(performance.now() - startedAt);
@@ -465,10 +777,10 @@
         resultUrl = URL.createObjectURL(result);
         resultPreview.src = resultUrl;
         downloadButton.href = resultUrl;
-        downloadButton.download = `${selectedFile.name.replace(/\.[^.]+$/, "") || "image"}-cutout.png`;
+        downloadButton.download = (selectedFile.name.replace(/\.[^.]+$/, "") || "image") + "-cutout.png";
         results.hidden = false;
-        processingTime.textContent = `Processed in ${elapsed}`;
-        status.textContent = `Background removed in ${elapsed}.`;
+        processingTime.textContent = "Processed in " + elapsed;
+        status.textContent = "Background removed in " + elapsed + ".";
         status.className = "status success";
       } catch (error) {
         status.textContent = error.message || "Could not process this image.";
@@ -480,7 +792,38 @@
       }
     });
 
-    resetButton.addEventListener("click", () => {
+    compositeDownload.addEventListener("click", function (event) {
+      event.preventDefault();
+      if (!resultPreview.complete || !resultPreview.naturalWidth) return;
+      const output = getOutputSize();
+      compositeCanvas.width = output.width;
+      compositeCanvas.height = output.height;
+      const context = compositeCanvas.getContext("2d");
+      context.fillStyle = backgroundColorValue || "#ffffff";
+      context.fillRect(0, 0, output.width, output.height);
+      if (backgroundImage) {
+        const bg = getBackgroundRect(output.width, output.height);
+        context.drawImage(backgroundImage, bg.left, bg.top, bg.width, bg.height);
+      }
+      const subject = getSubjectRect(output.width, output.height);
+      if (subject) context.drawImage(resultPreview, subject.left, subject.top, subject.width, subject.height);
+      compositeCanvas.toBlob(function (blob) {
+        if (!blob) {
+          setBackgroundStatus("Could not create the composite PNG. Try a smaller image.", true);
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = (selectedFile.name.replace(/\.[^.]+$/, "") || "image") + "-composite.png";
+        link.click();
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 1000);
+      }, "image/png");
+    });
+
+    resetButton.addEventListener("click", function () {
       selectedFile = null;
       resetBackground();
       fileInput.value = "";
@@ -488,8 +831,11 @@
       clearUrl(resultUrl);
       sourceUrl = null;
       resultUrl = null;
+      selectedPreview.removeAttribute("src");
       originalPreview.removeAttribute("src");
       resultPreview.removeAttribute("src");
+      compositeSubjectImage.removeAttribute("src");
+      selectedPreviewPanel.hidden = true;
       results.hidden = true;
       fileName.textContent = "No image selected";
       fileSize.textContent = "Your image stays at its original dimensions";

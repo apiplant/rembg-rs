@@ -24,7 +24,7 @@ cargo run --release --features cuda-cudnn -- remove input.jpg output.png
 cargo run --release --features cuda-cudnn -- serve --addr 127.0.0.1:8080
 ```
 
-Open the URL printed by `serve`. Drop an image to get a transparent PNG, then preview it over another image or a solid color. For a CPU run, use `--device cpu`; for CUDA without cuDNN, build with `--features cuda`. The `cuda-cudnn` feature needs the CUDA toolkit, NVCC, and cuDNN installed.
+Open the URL printed by `serve`. Select or drop an image to preview it before processing. After removal, drag and resize the cutout over a photo or solid color; background controls show the full photo or crop, zoom, and reposition it. For a CPU run, use `--device cpu`; for CUDA without cuDNN, build with `--features cuda`. The `cuda-cudnn` feature needs the CUDA toolkit, NVCC, and cuDNN installed.
 
 The model bundle is about 13.6 GB. Override its directory with `--models-dir PATH` or `RMBG_MODELS_DIR=PATH`. `fetch-comfy` resumes interrupted Hugging Face downloads and validates the files. The public INT8 bundle does not require an HF token.
 

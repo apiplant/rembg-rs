@@ -7,3 +7,6 @@
 *.jpeg
 *.webp
 __pycache__/
+!website/public/assets/*.png
+/website/node_modules
+/website/dist

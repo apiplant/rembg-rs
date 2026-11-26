@@ -89,8 +89,14 @@ jobs:
             rembg-rs-cuda-*.sha256
           if-no-files-found: error
 
+  # Built inside Arch against Arch's own `cuda` package: the Debian build above
+  # links the CUDA 12 runtime, and Arch ships a newer CUDA with different
+  # sonames, so a binary built there fails to start on Arch. Rolling Arch can
+  # break a CUDA build before anything here changes, so a failure is not fatal:
+  # the Arch CUDA package then falls back to the generic CUDA archive.
   cuda-package-arch:
     runs-on: ubuntu-latest
+    continue-on-error: true
     container: archlinux:base-devel
     steps:
       - name: Install build tools
@@ -99,9 +105,19 @@ jobs:
       - name: Build Arch CUDA binary
         shell: bash
         env:
+          # 80, not 75: below 8.0 candle-kernels redefines __hmax_nan/__hmin_nan,
+          # which the newer cuda_fp16.h in Arch's CUDA already defines.
           CUDA_COMPUTE_CAP: "80"
         run: |
           export PATH=/opt/cuda/bin:$PATH CUDA_PATH=/opt/cuda CUDA_HOME=/opt/cuda
+          # cudarc refuses toolkits newer than it knows (Arch currently ships
+          # 13.5, cudarc 0.19.10 stops at 13.4). Report the newest supported
+          # version: major*1000+minor*10. The headers are backward compatible,
+          # and the build uses only what candle-kernels compiles itself.
+          cudarc_version=$(nvcc --version \
+            | sed -n 's/.*release \([0-9]*\)\.\([0-9]*\).*/\1 \2/p' \
+            | awk '{v=$1*1000+$2*10; print (v>13040)?13040:v}')
+          export CUDARC_CUDA_VERSION="$cudarc_version"
           cargo build --locked --release --features cuda
       - name: Archive
         shell: bash
@@ -122,6 +138,8 @@ jobs:
 
   packages:
     needs: [package, cuda-package, cuda-package-arch]
+    # The Arch CUDA build may fail without blocking the release (see its job).
+    if: ${{ !cancelled() && needs.package.result == 'success' && needs.cuda-package.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -203,9 +221,16 @@ jobs:
           test -f "$versioned_package"
           (cd pkg && sha256sum "rembg-rs-$version-1-x86_64.pkg.tar.zst" > "rembg-rs-$version-1-x86_64.pkg.tar.zst.sha256")
           cuda_archive="rembg-rs-cuda-arch-$GITHUB_REF_NAME-x86_64-unknown-linux-gnu.tar.gz"
+          cuda_prefix="rembg-rs-cuda-arch"
+          if [ ! -f "dist/$cuda_archive" ]; then
+            echo "::warning::no Arch-built CUDA archive; the Arch CUDA package falls back to the CUDA 12 build"
+            cuda_prefix="rembg-rs-cuda"
+            cuda_archive="$cuda_prefix-$GITHUB_REF_NAME-x86_64-unknown-linux-gnu.tar.gz"
+          fi
           cuda_sha=$(sha256sum "dist/$cuda_archive" | cut -d' ' -f1)
           mkdir -p pkg-cuda
           sed -e "s/@VERSION@/$version/g" \
+              -e "s/@ARCHIVE_PREFIX@/$cuda_prefix/g" \
               -e "s/@SHA_LINUX_X86_64_CUDA@/$cuda_sha/g" \
               packaging/pacman/PKGBUILD-cuda > pkg-cuda/PKGBUILD
           if grep -qE '@[A-Z_]+@' pkg-cuda/PKGBUILD; then
@@ -251,7 +276,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [package, cuda-package, cuda-package-arch, packages]
+    needs: [package, cuda-package, packages]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

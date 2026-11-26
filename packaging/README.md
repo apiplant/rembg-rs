@@ -27,6 +27,14 @@ runtime from NVIDIA's repository in addition to the declared `libcuda1`
 driver dependency. The Debian/Ubuntu build targets Turing (compute capability
 7.5) and newer; the Arch build targets Ampere (8.0) and newer. The CUDA
 archives are also available for manual installation.
+
+Rolling Arch can ship a CUDA toolkit newer than `cudarc` knows about (13.5
+while `cudarc` 0.19.10 stops at 13.4). The Arch job therefore reports the
+newest supported toolkit version through `CUDARC_CUDA_VERSION`, and is
+`continue-on-error`: if Arch still breaks the build, the `rembg-rs-cuda`
+Arch package falls back to the Debian-built CUDA 12 archive (the same binary
+as the `.deb`) instead of blocking the release. That fallback needs a host
+CUDA 12 runtime, so a native Arch build is preferred when available.
 The published benchmark uses a local `cuda-cudnn` build; these release archives
 use the `cuda` feature.
 

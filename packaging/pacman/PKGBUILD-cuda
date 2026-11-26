@@ -9,7 +9,10 @@ license=('MIT')
 depends=('glibc' 'nvidia-utils' 'cuda')
 provides=('rembg-rs')
 conflicts=('rembg-rs')
-source=("rembg-rs-cuda-$pkgver-x86_64.tar.gz::https://github.com/apiplant/rembg-rs/releases/download/v$pkgver/rembg-rs-cuda-arch-v$pkgver-x86_64-unknown-linux-gnu.tar.gz")
+# @ARCHIVE_PREFIX@ is the Arch-built CUDA archive when that job succeeded, or
+# the generic CUDA archive when rolling Arch broke it. The workflow fills this
+# in together with the version and checksum.
+source=("rembg-rs-cuda-$pkgver-x86_64.tar.gz::https://github.com/apiplant/rembg-rs/releases/download/v$pkgver/@ARCHIVE_PREFIX@-v$pkgver-x86_64-unknown-linux-gnu.tar.gz")
 sha256sums=('@SHA_LINUX_X86_64_CUDA@')
 options=('!strip' '!debug')
 
